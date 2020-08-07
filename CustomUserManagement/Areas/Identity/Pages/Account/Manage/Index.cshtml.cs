@@ -29,6 +29,8 @@ namespace CustomUserManagement.Areas.Identity.Pages.Account.Manage
 
         [TempData]
         public string StatusMessage { get; set; }
+        [TempData]
+        public string UserNameChangeLimitMessage { get; set; }
 
         [BindProperty]
         public InputModel Input { get; set; }
@@ -74,7 +76,7 @@ namespace CustomUserManagement.Areas.Identity.Pages.Account.Manage
             {
                 return NotFound($"Unable to load user with ID '{_userManager.GetUserId(User)}'.");
             }
-
+            UserNameChangeLimitMessage = $"You can change your username {user.UsernameChangeLimit} more time(s).";
             await LoadAsync(user);
             return Page();
         }
@@ -117,7 +119,31 @@ namespace CustomUserManagement.Areas.Identity.Pages.Account.Manage
             {
                 user.LastName = Input.LastName;
                 await _userManager.UpdateAsync(user);
-            }    
+            }   
+            
+            if(user.UsernameChangeLimit > 0)
+            {
+                if(Input.Username != user.UserName)
+                {
+                    var userNameExists = await _userManager.FindByNameAsync(Input.Username);
+                    if(userNameExists != null)
+                    {
+                        StatusMessage = "User name already taken. Select a different username.";
+                        return RedirectToPage();
+                    }
+                    var setUserName = await _userManager.SetUserNameAsync(user, Input.Username);
+                    if (!setUserName.Succeeded)
+                    {
+                        StatusMessage = "Unexpected error when trying to set user name.";
+                        return RedirectToPage();
+                    }
+                    else
+                    {
+                        user.UsernameChangeLimit -= 1;
+                        await _userManager.UpdateAsync(user);
+                    }
+                }
+            }
 
             if (Request.Form.Files.Count > 0)
             {
